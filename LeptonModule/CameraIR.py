@@ -53,3 +53,7 @@ class CameraIR:
 
         except Exception as e:
             print(f"Erreur lors de l'arrêt de la caméra : {e}")
+
+    def picture(self):
+        
+        
