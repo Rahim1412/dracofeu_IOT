@@ -4,10 +4,11 @@ import os
 
 class CameraIR:
 
-    def __init__(self,script_full_init):
-            self.run(script_full_init)
-            self.start_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/start.sh"
-            self.stop_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/stop.sh"
+    def __init__(self):
+        self.init_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/init.sh"
+        self.start_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/start.sh"
+        self.stop_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/stop.sh"
+        self.run(self.init_path)
 
     def run(self, script_full):
         """Rend le script exécutable puis l'exécute depuis un chemin absolu."""
