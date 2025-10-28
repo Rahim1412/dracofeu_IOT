@@ -1,5 +1,4 @@
-from LeptonModule.CameraIR import CameraIR
-
+from CameraIR import CameraIR
 
 cam = CameraIR()
 
