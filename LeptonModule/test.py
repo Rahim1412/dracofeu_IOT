@@ -2,4 +2,5 @@ from CameraIR import CameraIR
 
 cam = CameraIR()
 
-cam.run_init("/home/dracofeu/dracofeu_IOT/LeptonModule/init.sh")
+cam.start_cam()
+cam.stop_cam()

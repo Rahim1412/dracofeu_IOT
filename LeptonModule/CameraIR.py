@@ -3,21 +3,27 @@ import os
 
 
 class CameraIR:
-    def run_init(self, script_full_path):
+
+    def __init__(self,script_full_init):
+            self.run(script_full_init)
+            self.start_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/start.sh"
+            self.stop_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/stop.sh"
+
+    def run(self, script_full):
         """Rend le script exécutable puis l'exécute depuis un chemin absolu."""
 
         # Vérifie si le fichier existe
-        if not os.path.isfile(script_full_path):
-            print(f"Script introuvable : {script_full_path}")
+        if not os.path.isfile(script_full):
+            print(f"Script introuvable : {script_full}")
             return
 
         try:
             # Rend exécutable
-            subprocess.run(["chmod", "+x", script_full_path], check=True)
+            subprocess.run(["chmod", "+x", script_full], check=True)
 
             # Exécute le script via Bash
             result = subprocess.run(
-                ["bash", script_full_path],
+                ["bash", script_full],
                 capture_output=True,
                 text=True
             )
@@ -32,3 +38,17 @@ class CameraIR:
 
         except Exception as e:
             print(f" Erreur : {e}")
+
+    def start_cam(self):
+        try:
+            self.run(self.start_path)
+
+        except Exception as e:
+            print(f"Erreur lors du démarrage de la caméra : {e}")
+
+    def stop_cam(self):
+        try:
+            self.run(self.stop_path)
+
+        except Exception as e:
+            print(f"Erreur lors de l'arrêt de la caméra : {e}")
