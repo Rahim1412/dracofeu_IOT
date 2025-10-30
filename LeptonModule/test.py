@@ -1,4 +1,4 @@
-from CameraIR import CameraIR
+from CameraIR import *
 
 cam = CameraIR()
 
