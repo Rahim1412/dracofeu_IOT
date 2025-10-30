@@ -55,74 +55,50 @@ class CameraIR:
         except Exception as e:
             print(f"Erreur lors de l'arrêt de la caméra : {e}")
 
-    def capture_lepton_frame(self, device="/dev/video1", to_uint8=True, tries=5):
-        import cv2, numpy as np, os
-
-        # 1) Liste d’essais (backend + device)
-        candidates = []
-        # a) chemin direct, sans backend
-        candidates.append(("path_no_api", lambda: cv2.VideoCapture(device)))
-        # b) chemin direct, backend V4L2
-        candidates.append(("path_v4l2",  lambda: cv2.VideoCapture(device, cv2.CAP_V4L2)))
-        # c) index 1, backend V4L2
-        candidates.append(("index1_v4l2", lambda: cv2.VideoCapture(1, cv2.CAP_V4L2)))
-        # d) index 1, sans backend
-        candidates.append(("index1_no_api", lambda: cv2.VideoCapture(1)))
-        # e) index 0 (au cas où), V4L2
-        candidates.append(("index0_v4l2", lambda: cv2.VideoCapture(0, cv2.CAP_V4L2)))
-        # f) index 0 sans backend
-        candidates.append(("index0_no_api", lambda: cv2.VideoCapture(0)))
+    def capture_lepton_frame(self, device="/dev/video1", to_uint8=True, timeout_s=2.0):
 
         cap = None
-        last_reason = "inconnu"
-        for name, opener in candidates:
+        try:
+            # Ouvre uniquement le device Lepton
+            cap = cv2.VideoCapture(device)  # éviter CAP_V4L2 qui peut bug selon build
+            if not cap.isOpened():
+                raise RuntimeError(f"Impossible d'ouvrir {device}. Vérifie start.sh et les droits (groupe 'video').")
+
+            # Réduit la latence si supporté (certaines builds ignorent cette prop, pas grave)
             try:
-                cap = opener()
-                if cap is not None and cap.isOpened():
-                    # trouvé !
-                    # print(f"[INFO] Ouverture OK via {name}")
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            except Exception:
+                pass
+
+            # Boucle de lecture avec timeout dur
+            deadline = time.monotonic() + timeout_s
+            frame = None
+            while time.monotonic() < deadline:
+                ok, fr = cap.read()
+                if ok and fr is not None:
+                    frame = fr
                     break
-                else:
-                    last_reason = f"{name}: cap non ouvert"
-                    if cap is not None:
-                        cap.release()
-                    cap = None
-            except Exception as e:
-                last_reason = f"{name}: {e}"
-                cap = None
+                time.sleep(0.01)  # petite pause non bloquante
 
-        if cap is None:
-            raise RuntimeError(
-                "Impossible d'ouvrir la caméra. "
-                f"Dernière tentative: {last_reason}. "
-                "Vérifie que /dev/video1 existe, que le flux est lancé, et les droits (groupe 'video')."
-            )
+            if frame is None:
+                raise RuntimeError(f"Aucune frame reçue sous {timeout_s:.1f}s (flux vide ?)")
 
-        # 2) Lecture de quelques frames (warm-up)
-        frame = None
-        for _ in range(tries):
-            ok, fr = cap.read()
-            if ok and fr is not None:
-                frame = fr
-                break
-            cv2.waitKey(10)
+            # Normalisation en niveaux de gris
+            if len(frame.shape) == 3 and frame.shape[2] == 3:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        cap.release()
+            # Lepton Y16 -> uint8
+            if to_uint8 and frame.dtype == np.uint16:
+                lo = np.percentile(frame, 2)
+                hi = np.percentile(frame, 98)
+                if hi <= lo:
+                    lo, hi = frame.min(), frame.max()
+                    if hi == lo:
+                        hi = lo + 1
+                frame = np.clip((frame - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
 
-        if frame is None:
-            raise RuntimeError("Lecture de frame échouée (flux indisponible ou vide).")
+            return frame
 
-        # 3) Normalisation en niveaux de gris 8 bits
-        if len(frame.shape) == 3 and frame.shape[2] == 3:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        if to_uint8 and frame.dtype == np.uint16:
-            lo = np.percentile(frame, 2)
-            hi = np.percentile(frame, 98)
-            if hi <= lo:
-                lo, hi = frame.min(), frame.max()
-                if hi == lo:
-                    hi = lo + 1
-            frame = np.clip((frame - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
-
-        return frame
+        finally:
+            if cap is not None:
+                cap.release()
