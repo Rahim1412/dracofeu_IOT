@@ -57,27 +57,23 @@ class CameraIR:
             print(f"Erreur lors de l'arrêt de la caméra : {e}")
 
     def capture_image(self, save_path="/home/dracofeu/dracofeu_IOT/LeptonModule/test_lepton.jpg"):
-        """Capture une seule image depuis le flux vidéo Lepton et la sauvegarde."""
-        cap = cv2.VideoCapture(self.device)
+        """Version ULTRA simple : ouvre /dev/video1, lit 1 image, sauvegarde, ferme."""
+        print("[capture] Ouverture de /dev/video1 ...")
+        cap = cv2.VideoCapture(self.device)   # self.device = "/dev/video1"
+
         if not cap.isOpened():
-            print(f"❌ Impossible d'ouvrir {self.device}. Vérifie que start.sh est lancé.")
+            print("❌ Impossible d'ouvrir /dev/video1 (cap.isOpened() = False)")
             return
 
+        print("[capture] Lecture d'une image ...")
         ok, frame = cap.read()
         cap.release()
+        print("[capture] Lecture terminée")
 
         if not ok or frame is None:
-            print("❌ Échec de la capture (aucune image reçue).")
+            print("❌ Échec de la capture (frame vide).")
             return
-
-        # Conversion en niveaux de gris si besoin
-        if len(frame.shape) == 3 and frame.shape[2] == 3:
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # Conversion Y16 → uint8 si nécessaire (Lepton)
-        if frame.dtype == np.uint16:
-            lo, hi = np.percentile(frame, (2, 98))
-            frame = np.clip((frame - lo) * (255.0 / (hi - lo)), 0, 255).astype(np.uint8)
-
+        
         cv2.imwrite(save_path, frame)
-        print(f"✅ Image capturée et sauvegardée : {save_path}")
+        print(f"✅ Image sauvegardée dans : {save_path}")
+
