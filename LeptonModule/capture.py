@@ -2,28 +2,31 @@ import cv2
 import os
 
 device = "/dev/video1"
-save_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule/capture"
-os.makedirs(save_dir, exist_ok=True)
-save_path = os.path.join(save_dir, "test_opencv_ffmpeg.jpg")
+base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
+base_name = "photo"
+ext = ".jpg"
 
-print(f"[INFO] Ouverture de {device} avec CAP_FFMPEG ...")
-cap = cv2.VideoCapture(device, cv2.CAP_FFMPEG)  # 🔴 ici on force FFMPEG
+# Cherche le prochain numéro disponible
+i = 1
+while os.path.exists(f"{base_dir}/{base_name}_{i}{ext}"):
+    i += 1
 
-if not cap.isOpened():
-    print("❌ cap.isOpened() = False")
-    raise SystemExit
+save_path = f"{base_dir}/{base_name}_{i}{ext}"
 
-print("[INFO] Lecture d'une frame ...")
-ret, frame = cap.read()
-cap.release()
+cmd = [
+    "ffmpeg",
+    "-y",
+    "-f", "video4linux2",
+    "-input_format", "Y16",
+    "-video_size", "160x120",
+    "-i", self.device,
+    "-frames:v", "1",
+    save_path
+]
 
-print(f"[INFO] ret={ret}, frame is None? {frame is None}")
-
-if not ret or frame is None:
-    print("❌ Impossible de lire une image.")
-    raise SystemExit
-
-print(f"[INFO] frame.shape = {frame.shape}, dtype = {frame.dtype}")
-
-ok = cv2.imwrite(save_path, frame)
-print("✅ Image sauvegardée ?", ok, "→", save_path)
+print(f"📸 Capture {i} ...")
+try:
+    subprocess.run(cmd, check=True)
+    print(f"✅ Photo sauvegardée : {save_path}")
+except subprocess.CalledProcessError:
+    print("❌ Erreur : capture impossible.")
