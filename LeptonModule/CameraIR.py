@@ -57,23 +57,13 @@ class CameraIR:
             print(f"Erreur lors de l'arrêt de la caméra : {e}")
 
     def capture_image(self, save_path="/home/dracofeu/dracofeu_IOT/LeptonModule/test_lepton.jpg"):
-        """Version ULTRA simple : ouvre /dev/video1, lit 1 image, sauvegarde, ferme."""
-        print("[capture] Ouverture de /dev/video1 ...")
-        cap = cv2.VideoCapture(self.device)   # self.device = "/dev/video1"
-
-        if not cap.isOpened():
-            print("❌ Impossible d'ouvrir /dev/video1 (cap.isOpened() = False)")
-            return
-
-        print("[capture] Lecture d'une image ...")
-        ok, frame = cap.read()
-        cap.release()
-        print("[capture] Lecture terminée")
-
-        if not ok or frame is None:
-            print("❌ Échec de la capture (frame vide).")
-            return
-        
-        cv2.imwrite(save_path, frame)
-        print(f"✅ Image sauvegardée dans : {save_path}")
+        print("[capture] ffmpeg → 1 frame ...")
+        # Si ton Lepton émet en Y16, ffmpeg saura lire, mais l’image peut paraître sombre.
+        # Pour un test simple, on capture brut :
+        cmd = ["ffmpeg", "-y", "-f", "video4linux2", "-i", self.device, "-frames:v", "1", save_path]
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            print(f"✅ Image sauvegardée : {save_path}")
+        except subprocess.CalledProcessError:
+            print("❌ ffmpeg n'a pas réussi à capturer l'image.")
 
