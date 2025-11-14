@@ -1,20 +1,21 @@
 import subprocess
+import datetime
 
-# Chemin de sortie de la photo
-save_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/photo_lepton.jpg"
+# Génère un nom unique avec la date et l'heure
+timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+save_path = f"/home/dracofeu/dracofeu_IOT/LeptonModule/photo_{timestamp}.jpg"
 
-# Commande ffmpeg : capture 1 frame depuis /dev/video1
 cmd = [
     "ffmpeg",
-    "-y",                      # écrase si le fichier existe
-    "-f", "video4linux2",      # indique qu'on lit une caméra V4L2
-    "-input_format", "Y16",    # format 16 bits du Lepton
-    "-video_size", "160x120",  # taille de l’image Lepton 3.x
-    "-i", "/dev/video1",       # périphérique caméra
-    "-frames:v", "1",          # capture une seule image
+    "-y",
+    "-f", "video4linux2",
+    "-input_format", "Y16",
+    "-video_size", "160x120",
+    "-i", "/dev/video1",
+    "-frames:v", "1",
     save_path
 ]
 
-print("📸 Capture en cours...")
+print(f"📸 Capture en cours : {save_path}")
 subprocess.run(cmd, check=True)
 print(f"✅ Photo sauvegardée : {save_path}")
