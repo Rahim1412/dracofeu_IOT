@@ -10,6 +10,7 @@ class CameraIR:
         self.start_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/start.sh"
         self.stop_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/stop.sh"
         self.run(self.init_path)
+        self.device = "/dev/video1"  # Périphérique vidéo pour Lepton
 
     def run(self, script_full):
         """Rend le script exécutable puis l'exécute depuis un chemin absolu."""
