@@ -55,15 +55,37 @@ class CameraIR:
 
         except Exception as e:
             print(f"Erreur lors de l'arrêt de la caméra : {e}")
+    def capture_image(self):
+        """
+        Capture une image depuis le flux vidéo Lepton
+        et enregistre le fichier sous un nom unique : photo_1.jpg, photo_2.jpg, etc.
+        """
+        base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
+        base_name = "photo"
+        ext = ".jpg"
 
-    def capture_image(self, save_path="/home/dracofeu/dracofeu_IOT/LeptonModule/test_lepton.jpg"):
-        print("[capture] ffmpeg → 1 frame ...")
-        # Si ton Lepton émet en Y16, ffmpeg saura lire, mais l’image peut paraître sombre.
-        # Pour un test simple, on capture brut :
-        cmd = ["ffmpeg", "-y", "-f", "video4linux2", "-i", self.device, "-frames:v", "1", save_path]
+        # Cherche le prochain numéro disponible
+        i = 1
+        while os.path.exists(f"{base_dir}/{base_name}_{i}{ext}"):
+            i += 1
+
+        save_path = f"{base_dir}/{base_name}_{i}{ext}"
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f", "video4linux2",
+            "-input_format", "Y16",
+            "-video_size", "160x120",
+            "-i", self.device,
+            "-frames:v", "1",
+            save_path
+        ]
+
+        print(f"📸 Capture {i} ...")
         try:
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"✅ Image sauvegardée : {save_path}")
+            subprocess.run(cmd, check=True)
+            print(f"✅ Photo sauvegardée : {save_path}")
         except subprocess.CalledProcessError:
-            print("❌ ffmpeg n'a pas réussi à capturer l'image.")
+            print("❌ Erreur : capture impossible.")
 
