@@ -104,25 +104,25 @@ class CameraIR:
             i += 1
 
         save_path = os.path.join(base_dir, f"{base_name}_{i}{ext}")
-
         print(f"📸 Capture {i} ...")
 
-        # Ouvre le flux vidéo
+        # Ouvre la caméra (self.device doit = "/dev/video1")
         cap = cv2.VideoCapture(self.device)
+
         if not cap.isOpened():
             print(f"❌ Impossible d'ouvrir {self.device}")
             return
 
+        # Lit UNE image
         ret, frame = cap.read()
         cap.release()
 
         if not ret or frame is None:
-            print("❌ Erreur : impossible de lire une image depuis la caméra.")
+            print("❌ Impossible de lire une image depuis la caméra.")
             return
 
         # Sauvegarde l'image
-        ok = cv2.imwrite(save_path, frame)
-        if ok:
+        if cv2.imwrite(save_path, frame):
             print(f"✅ Photo sauvegardée : {save_path}")
         else:
-            print("❌ Erreur : impossible de sauvegarder l'image.")
+            print("❌ Erreur lors de la sauvegarde de l'image.")
