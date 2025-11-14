@@ -185,7 +185,7 @@ static int grab_frame()
     float scale = (maxv > minv) ? (255.0f / (maxv - minv)) : 1.0f;
 
     // Palette → RGB24
-    const int *cm = colormap_ironblack; // Palettes.h (3*256 ints)
+    const int *cm = colormap_rainbow; // Palettes.h (3*256 ints)
     for (int i = 0; i < 160*120; ++i) {
         int v8 = (int)((raw14[i] - minv) * scale + 0.5f);
         if (v8 < 0) v8 = 0; else if (v8 > 255) v8 = 255;
