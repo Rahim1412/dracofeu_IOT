@@ -4,12 +4,12 @@ from time import sleep
 cam = CameraIR()
 cam.start_cam()
 
-for i in range(5):
+for i in range(100):
     print(f"📸 Photo {i+1}/100 ...")
     cam.capture_image()   # ta fonction qui sauvegarde automatiquement avec un numéro
 
     print("attendre 5 secondes...")
-    sleep(5)  # Petite pause entre les captures
+    sleep(0.5)  # Petite pause entre les captures
 
 print("✔️ 5 photos prises.")
 cam.stop_cam()
