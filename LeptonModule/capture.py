@@ -1,9 +1,16 @@
 import subprocess
-import datetime
+import os
 
-# Génère un nom unique avec la date et l'heure
-timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-save_path = f"/home/dracofeu/dracofeu_IOT/LeptonModule/photo_{timestamp}.jpg"
+base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
+base_name = "photo"
+ext = ".jpg"
+
+# Cherche le prochain numéro disponible
+i = 1
+while os.path.exists(f"{base_dir}/{base_name}_{i}{ext}"):
+    i += 1
+
+save_path = f"{base_dir}/{base_name}_{i}{ext}"
 
 cmd = [
     "ffmpeg",
@@ -16,6 +23,7 @@ cmd = [
     save_path
 ]
 
-print(f"📸 Capture en cours : {save_path}")
+print(f"📸 Capture {i} ...")
 subprocess.run(cmd, check=True)
 print(f"✅ Photo sauvegardée : {save_path}")
+
