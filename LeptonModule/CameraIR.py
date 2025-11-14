@@ -60,7 +60,7 @@ class CameraIR:
         Capture une image depuis le flux vidéo Lepton
         et enregistre le fichier sous un nom unique : photo_1.jpg, photo_2.jpg, etc.
         """
-        base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule/capture"
+        base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
         base_name = "photo"
         ext = ".jpg"
 
