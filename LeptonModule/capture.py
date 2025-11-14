@@ -1,29 +1,29 @@
-import subprocess
+import cv2
 import os
 
-base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
-base_name = "photo"
-ext = ".jpg"
+device = "/dev/video1"
+save_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule/capture"
+os.makedirs(save_dir, exist_ok=True)
+save_path = os.path.join(save_dir, "test_opencv.jpg")
 
-# Cherche le prochain numéro disponible
-i = 1
-while os.path.exists(f"{base_dir}/{base_name}_{i}{ext}"):
-    i += 1
+print(f"[INFO] Ouverture de {device} ...")
+cap = cv2.VideoCapture(device, cv2.CAP_V4L2)  # on force V4L2
 
-save_path = f"{base_dir}/{base_name}_{i}{ext}"
+if not cap.isOpened():
+    print("❌ cap.isOpened() = False")
+    raise SystemExit
 
-cmd = [
-    "ffmpeg",
-    "-y",
-    "-f", "video4linux2",
-    "-input_format", "Y16",
-    "-video_size", "160x120",
-    "-i", "/dev/video1",
-    "-frames:v", "1",
-    save_path
-]
+print("[INFO] Lecture d'une frame ...")
+ret, frame = cap.read()
+cap.release()
 
-print(f"📸 Capture {i} ...")
-subprocess.run(cmd, check=True)
-print(f"✅ Photo sauvegardée : {save_path}")
+print(f"[INFO] ret={ret}, frame is None? {frame is None}")
 
+if not ret or frame is None:
+    print("❌ Impossible de lire une image.")
+    raise SystemExit
+
+print(f"[INFO] frame.shape = {frame.shape}, dtype = {frame.dtype}")
+
+ok = cv2.imwrite(save_path, frame)
+print("✅ Image sauvegardée ?" , ok, "→", save_path)
