@@ -1,8 +1,12 @@
 from CameraIR import *
 
 cam = CameraIR()
-
 cam.start_cam()
-print("Prise de la photo...")
-cam.capture_image()             # capture et enregistre une seule image
+
+for i in range(100):
+    print(f"📸 Photo {i+1}/100 ...")
+    cam.capture_image()   # ta fonction qui sauvegarde automatiquement avec un numéro
+                        
+print("✔️ 100 photos prises.")
 cam.stop_cam()
+
