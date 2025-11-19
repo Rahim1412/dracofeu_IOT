@@ -58,6 +58,7 @@ class CameraIR:
 
         except Exception as e:
             print(f"Erreur lors de l'arrêt de la caméra : {e}")
+
     def capture_image(self):
         """
         Capture une image depuis le flux vidéo Lepton
@@ -124,3 +125,44 @@ class CameraIR:
         img = Image.open(image_path)
         img.save(image_path, exif=exif_bytes)
         print(f"📌 GPS ajouté à {image_path}")
+
+    def record_video(self, duration_sec):
+        """
+        Enregistre une vidéo depuis le flux Lepton pendant `duration_sec` secondes.
+        Sauvegarde dans un fichier unique : video_1.mp4, video_2.mp4, etc.
+        """
+        base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule/videos"
+        os.makedirs(base_dir, exist_ok=True)
+
+        base_name = "video"
+        ext = ".mp4"
+
+        # Cherche le prochain numéro disponible
+        i = 1
+        while os.path.exists(f"{base_dir}/{base_name}_{i}{ext}"):
+            i += 1
+
+        save_path = f"{base_dir}/{base_name}_{i}{ext}"
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f", "video4linux2",
+            "-video_size", "160x120",
+            "-framerate", "30",
+            "-i", self.device,
+            "-t", str(duration_sec),   # durée de la vidéo en secondes
+            "-vcodec", "libx264",      # encodeur vidéo
+            "-pix_fmt", "yuv420p",     # format compatible avec la plupart des lecteurs
+            save_path
+        ]
+
+        print(f"🎥 Enregistrement vidéo {i} pendant {duration_sec} s ...")
+        try:
+            subprocess.run(cmd, check=True)
+            print(f"✅ Vidéo sauvegardée : {save_path}")
+        except subprocess.CalledProcessError:
+            print("❌ Erreur : enregistrement vidéo impossible.")
+            return None
+
+        return save_path
