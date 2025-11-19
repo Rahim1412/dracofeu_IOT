@@ -12,7 +12,8 @@ cam.start_cam()
 #    sleep(1)  # Petite pause entre les captures
 
 #print("✔️ 5 photos prises.")
-path = cam.capture_image() 
-cam.add_gps_exif(path, lat=48.8566, lon=2.3522, alt=35)
+#path = cam.capture_image() 
+#cam.add_gps_exif(path, lat=48.8566, lon=2.3522, alt=35)
+cam.record_video(10)
 cam.stop_cam()
 
