@@ -88,5 +88,36 @@ class CameraIR:
             print(f"✅ Photo sauvegardée : {save_path}")
         except subprocess.CalledProcessError:
             print("❌ Erreur : capture impossible.")
+            return None
+        return save_path
 
+    def dms_to_deg(self, value, ref):
+        d, m, s = value
+        deg = d[0]/d[1] + (m[0]/m[1])/60 + (s[0]/s[1])/3600
+        if ref in ['S', 'W']:
+            deg = -deg
+        return deg
     
+    def deg_to_dms_rational(self, deg_float):
+        deg = int(deg_float)
+        min_float = (deg_float - deg) * 60
+        minutes = int(min_float)
+        sec_float = (min_float - minutes) * 60
+        return ((deg, 1), (minutes, 1), (int(sec_float * 100), 100))
+    
+    def add_gps_exif(self, image_path, lat, lon, alt):
+        gps_ifd = {
+            piexif.GPSIFD.GPSLatitudeRef: 'N' if lat >= 0 else 'S',
+            piexif.GPSIFD.GPSLatitude: self.deg_to_dms_rational(abs(lat)),
+            piexif.GPSIFD.GPSLongitudeRef: 'E' if lon >= 0 else 'W',
+            piexif.GPSIFD.GPSLongitude: self.deg_to_dms_rational(abs(lon)),
+            piexif.GPSIFD.GPSAltitudeRef: 0,
+            piexif.GPSIFD.GPSAltitude: (int(alt * 100), 100),
+        }
+
+        exif_dict = {"GPS": gps_ifd}
+        exif_bytes = piexif.dump(exif_dict)
+
+        img = Image.open(image_path)
+        img.save(image_path, exif=exif_bytes)
+        print(f"📌 GPS ajouté à {image_path}")
