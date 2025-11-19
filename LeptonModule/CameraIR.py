@@ -2,6 +2,9 @@ import subprocess
 import os
 import cv2
 import numpy as np
+import piexif
+from PIL import Image
+
 
 class CameraIR:
 
