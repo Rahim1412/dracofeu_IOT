@@ -68,3 +68,41 @@ def capture_camera_rpi4(self):
 
         img = Image.open(image_path)
         img.save(image_path, exif=exif_bytes)
+
+def capture_image_opencv(self):
+        """Capture une image depuis le flux vidéo Lepton et enregistre le fichier sous un nom unique : photo_1.jpg, photo_2.jpg, etc.(version OpenCV)"""
+        # Dossier de destination
+        base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule/capture"
+        os.makedirs(base_dir, exist_ok=True)
+
+        base_name = "photo"
+        ext = ".jpg"
+
+        # Cherche le prochain numéro disponible
+        i = 1
+        while os.path.exists(os.path.join(base_dir, f"{base_name}_{i}{ext}")):
+            i += 1
+
+        save_path = os.path.join(base_dir, f"{base_name}_{i}{ext}")
+        print(f"📸 Capture {i} ...")
+
+        # Ouvre la caméra (self.device doit = "/dev/video1")
+        cap = cv2.VideoCapture(self.device)
+
+        if not cap.isOpened():
+            print(f"❌ Impossible d'ouvrir {self.device}")
+            return
+
+        # Lit UNE image
+        ret, frame = cap.read()
+        cap.release()
+
+        if not ret or frame is None:
+            print("❌ Impossible de lire une image depuis la caméra.")
+            return
+
+        # Sauvegarde l'image
+        if cv2.imwrite(save_path, frame):
+            print(f"✅ Photo sauvegardée : {save_path}")
+        else:
+            print("❌ Erreur lors de la sauvegarde de l'image.")

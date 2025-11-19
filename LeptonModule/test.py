@@ -8,8 +8,8 @@ for i in range(100):
     print(f"📸 Photo {i+1}/100 ...")
     cam.capture_image()   # ta fonction qui sauvegarde automatiquement avec un numéro
 
-    print("attendre 5 secondes...")
-    sleep(0.5)  # Petite pause entre les captures
+    print("attendre 1 secondes...")
+    sleep(1)  # Petite pause entre les captures
 
 print("✔️ 5 photos prises.")
 cam.stop_cam()
