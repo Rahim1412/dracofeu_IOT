@@ -76,10 +76,10 @@ static void open_vpipe()
 
     v.fmt.pix.width        = width;
     v.fmt.pix.height       = height;
-    v.fmt.pix.pixelformat  = V4L2_PIX_FMT_RGB24; // "RGB3"
+    v.fmt.pix.pixelformat  = V4L2_PIX_FMT_GREY;
     v.fmt.pix.field        = V4L2_FIELD_NONE;
-    v.fmt.pix.bytesperline = width * 3;
-    vidsendsiz             = width * height * 3;
+    v.fmt.pix.bytesperline = width;
+    vidsendsiz             = width * height;
     v.fmt.pix.sizeimage    = vidsendsiz;
 
     if (ioctl(v4l2sink, VIDIOC_S_FMT, &v) < 0) {
@@ -182,17 +182,20 @@ static int grab_frame()
         if (v < minv) minv = v;
         if (v > maxv) maxv = v;
     }
-    float scale = (maxv > minv) ? (255.0f / (maxv - minv)) : 1.0f;
+    
+    // Normalisation 14 bits → [0,1], puis encodage en 0..255 (GREY8)
+    float scale = (maxv > minv) ? (1.0f / (maxv - minv)) : 1.0f;
 
-    // Palette → RGB24
-    const int *cm = colormap_rainbow; // Palettes.h (3*256 ints)
     for (int i = 0; i < 160*120; ++i) {
-        int v8 = (int)((raw14[i] - minv) * scale + 0.5f);
-        if (v8 < 0) v8 = 0; else if (v8 > 255) v8 = 255;
-        vidsendbuf[3*i + 0] = cm[3*v8 + 0];
-        vidsendbuf[3*i + 1] = cm[3*v8 + 1];
-        vidsendbuf[3*i + 2] = cm[3*v8 + 2];
+        float f = (raw14[i] - minv) * scale;  // f dans [0,1] idéalement
+        if (f < 0.0f) f = 0.0f;
+        if (f > 1.0f) f = 1.0f;
+
+        // Encodage sur 8 bits : 0 → froid, 255 → chaud
+        uint8_t v8 = (uint8_t)(f * 255.0f + 0.5f);
+        ((uint8_t*)vidsendbuf)[i] = v8;
     }
+
     return 0;
 }
 
