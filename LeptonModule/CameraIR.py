@@ -59,7 +59,7 @@ class CameraIR:
         except Exception as e:
             print(f"Erreur lors de l'arrêt de la caméra : {e}")
 
-    def capture_image(self):
+    def save_image(self):
         """
         Capture une image depuis le flux vidéo Lepton
         et enregistre le fichier sous un nom unique : photo_1.jpg, photo_2.jpg, etc.
@@ -94,6 +94,55 @@ class CameraIR:
             print("❌ Erreur : capture impossible.")
             return None
         return save_path
+
+    def capture_image(self):
+        """
+        Capture une image depuis /dev/video1 avec ffmpeg
+        et retourne directement un numpy array (normalisé 0–1),
+        SANS écrire de fichier sur le disque.
+        """
+
+        cmd = [
+            "ffmpeg",
+            "-loglevel", "error",        # pas de spam
+            "-f", "video4linux2",
+            "-input_format", "Y16",      # selon ce que tu sors sur /dev/video1
+            "-video_size", "160x120",
+            "-i", self.device,
+            "-frames:v", "1",
+            "-f", "image2pipe",
+            "-vcodec", "png",            # on encode une image PNG en sortie
+            "pipe:1"                     # vers stdout
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+        except subprocess.CalledProcessError as e:
+            print("❌ Erreur ffmpeg :")
+            print(e.stderr.decode("utf-8", errors="ignore"))
+            return None
+
+        # Décodage de l'image PNG depuis la mémoire
+        img = Image.open(io.BytesIO(result.stdout))
+
+        # Conversion en numpy array
+        img_np = np.array(img).astype(np.float32)
+
+        # Normalisation 0–1 (froid → chaud)
+        minv = img_np.min()
+        maxv = 255
+        if maxv > minv:
+            img_norm = (img_np - minv) / (maxv - minv)
+        else:
+            img_norm = np.zeros_like(img_np, dtype=np.float32)
+
+        # img_norm est un tableau 2D (120x160) de float32 entre 0 et 1
+        return img_norm
 
     def dms_to_deg(self, value, ref):
         d, m, s = value
