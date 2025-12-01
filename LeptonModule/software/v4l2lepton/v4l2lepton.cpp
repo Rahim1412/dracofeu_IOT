@@ -1,4 +1,4 @@
-// v4l2lepton_l3.cpp  — Lepton 3.5 → v4l2loopback (GREY8 160x120)
+// v4l2lepton_l3.cpp  — Lepton 3.5 → v4l2loopback (RGB24 160x120)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,7 +18,6 @@
 #include <semaphore.h>
 #include <stdint.h>
 #include <time.h>
-#include <poll.h>
 
 #include "Palettes.h"
 #include "SPI.h"
@@ -54,51 +53,9 @@ static uint16_t raw14 [160 * 120];                          // image brute
 static int resets = 0;
 
 // ----------- Outils -----------
-
-// conversion big-endian → CPU
 static inline uint16_t be16_to_cpu(uint16_t x) {
     return (uint16_t)((x << 8) | (x >> 8));
 }
-
-// Lecture exacte avec timeout (en ms) sur le descripteur fd.
-// Retourne 0 si OK, -1 si timeout/erreur.
-static int read_exact_timeout(int fd, uint8_t *buf, size_t len, int timeout_ms)
-{
-    size_t total = 0;
-
-    while (total < len) {
-        struct pollfd pfd;
-        pfd.fd = fd;
-        pfd.events = POLLIN;
-
-        int r = poll(&pfd, 1, timeout_ms);
-        if (r == 0) {
-            // timeout
-            fprintf(stderr, "SPI timeout (%d ms)\n", timeout_ms);
-            return -1;
-        }
-        if (r < 0) {
-            if (errno == EINTR) continue; // signal -> on recommence
-            perror("poll");
-            return -1;
-        }
-
-        if (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) {
-            fprintf(stderr, "SPI poll error: revents=0x%x\n", pfd.revents);
-            return -1;
-        }
-
-        ssize_t n = read(fd, buf + total, len - total);
-        if (n <= 0) {
-            perror("read");
-            return -1;
-        }
-        total += (size_t)n;
-    }
-    return 0;
-}
-
-// ---------- V4L2 / v4l2loopback ----------
 
 static void open_vpipe()
 {
@@ -119,12 +76,10 @@ static void open_vpipe()
 
     v.fmt.pix.width        = width;
     v.fmt.pix.height       = height;
-
-    // Image en niveaux de gris 8 bits (GREY8)
-    v.fmt.pix.pixelformat  = V4L2_PIX_FMT_GREY;  // 1 octet par pixel
+    v.fmt.pix.pixelformat  = V4L2_PIX_FMT_GREY;
     v.fmt.pix.field        = V4L2_FIELD_NONE;
-    v.fmt.pix.bytesperline = width;              // 160
-    vidsendsiz             = width * height;     // 160 * 120
+    v.fmt.pix.bytesperline = width;
+    vidsendsiz             = width * height;
     v.fmt.pix.sizeimage    = vidsendsiz;
 
     if (ioctl(v4l2sink, VIDIOC_S_FMT, &v) < 0) {
@@ -150,11 +105,9 @@ static void *sendvid(void *v)
         }
         sem_post(&lock2);
     }
-    return NULL;
 }
 
 // ---------- SPI ----------
-
 static void init_device() { SpiOpenPort(spidev); }
 static void stop_device() { SpiClosePort(); }
 
@@ -164,16 +117,10 @@ static int read_segment(uint8_t *dst)
 {
     // lire 60 paquets
     for (int j = 0; j < PACKETS_PER_SEGMENT; ++j) {
+        ssize_t r = read(spi_cs_fd, dst + j*PACKET_SIZE, PACKET_SIZE);
+        if (r != PACKET_SIZE) return -1;
 
-        // Lecture avec timeout 500 ms par paquet
-        if (read_exact_timeout(spi_cs_fd,
-                               dst + j*PACKET_SIZE,
-                               PACKET_SIZE,
-                               500) != 0) {
-            return -1;
-        }
-
-        // Numéro de paquet sur 2 octets d’en-tête, convention Lepton:
+        // Numéro de paquet sur 2 octets d’en-tête, on utilise la convention Lepton:
         // MSB: [flag ..] + high bits, LSB: low bits → ici sur 8 bits: 0..59
         int packetNumber = dst[j*PACKET_SIZE + 1];
         if (packetNumber != j) {
@@ -195,14 +142,9 @@ static int grab_frame()
         int tries = 0;
         for (;;) {
             if (read_segment(segbuf) == 0) break;
-            if (++tries > 50) return -1;     // trop d’échecs → on abandonne la frame
+            if (++tries > 50) return -1;     // trop d’échecs
             usleep(1000);
-            if (tries % 20 == 0) {
-                // Resync SPI
-                SpiClosePort();
-                usleep(10000);
-                SpiOpenPort(spidev);
-            }
+            if (tries % 20 == 0) { SpiClosePort(); usleep(10000); SpiOpenPort(spidev); }
         }
 
         // Segment ID : encodé dans l’en-tête du **paquet 20**
@@ -211,7 +153,7 @@ static int grab_frame()
         if (seg_id != seg_expected) {
             // mauvaise tranche → recommencer depuis le début de la frame
             seg_expected = 0;
-            // vider FIFO SPI pour resync (on ne lit rien ici mais on va relire des segments)
+            // vider FIFO SPI pour resync
             continue;
         }
 
@@ -258,7 +200,6 @@ static int grab_frame()
 }
 
 // ---------- CLI ----------
-
 void usage(const char *exec)
 {
     printf("Usage: %s [options]\n"
@@ -276,14 +217,11 @@ static const struct option long_options [] = {
     { 0, 0, 0, 0 }
 };
 
-// ---------- main ----------
-
 int main(int argc, char **argv)
 {
     // CLI
     for (;;) {
-        int index;
-        int c = getopt_long(argc, argv, short_options, long_options, &index);
+        int index, c = getopt_long(argc, argv, short_options, long_options, &index);
         if (c == -1) break;
         switch (c) {
             case 'd': spidev = optarg; break;
@@ -307,33 +245,14 @@ int main(int argc, char **argv)
 
         init_device(); // SPI open
 
-        // --- WATCHDOG : on note le temps de début pour reset périodique ---
-        struct timespec t_start;
-        clock_gettime(CLOCK_MONOTONIC, &t_start);
-
         for (;;) {
-            // 1) On regarde si 5 s sont passées depuis l'init du SPI
-            struct timespec now;
-            clock_gettime(CLOCK_MONOTONIC, &now);
-            double elapsed =
-                (now.tv_sec - t_start.tv_sec) +
-                (now.tv_nsec - t_start.tv_nsec) / 1e9;
-
-            if (elapsed > 5.0) {
-                fprintf(stderr, "Watchdog: 5s elapsed, restarting SPI\n");
-                break; // on sort de la boucle -> stop_device();
-            }
-
-            // 2) On essaie de prendre une frame
             if (grab_frame() != 0) {
-                // resync SPI si échec de frame
-                fprintf(stderr, "grab_frame failed, resync SPI\n");
+                // resync SPI si échec
                 SpiClosePort();
                 usleep(10000);
                 SpiOpenPort(spidev);
                 continue;
             }
-
             // publier l'image
             sem_post(&lock1);
 
@@ -341,14 +260,8 @@ int main(int argc, char **argv)
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
             ts.tv_sec += 2;
-            if (sem_timedwait(&lock2, &ts)) {
-                // si timeout sur le sink, on casse la boucle (reset SPI)
-                fprintf(stderr, "sem_timedwait timeout, restarting SPI\n");
-                break;
-            }
+            if (sem_timedwait(&lock2, &ts)) break;
         }
-
-        // on coupe le SPI (purge)
         stop_device(); // SPI close
     }
 
