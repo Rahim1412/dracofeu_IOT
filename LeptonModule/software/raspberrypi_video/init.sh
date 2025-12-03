@@ -1,13 +1,13 @@
 #!/bin/bash
 # =====================================================
 # init.sh — Initialisation de l'environnement FLIR Lepton
-# (vérification du binaire lepton_capture + mode CPU performance)
+# (vérification du binaire + optimisation CPU)
 # =====================================================
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LEPTON_BIN="$SCRIPT_DIR/software/raspberrypi_video/lepton_capture"
+LEPTON_BIN="$SCRIPT_DIR/lepton_capture"
 
 echo "🔍 Vérification du binaire lepton_capture..."
 if [ ! -x "$LEPTON_BIN" ]; then
