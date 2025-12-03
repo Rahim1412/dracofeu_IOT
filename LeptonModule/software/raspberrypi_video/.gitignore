@@ -1,0 +1,24 @@
+# ========================
+# IGNORER LES PHOTOS IR
+# ========================
+LeptonModule/photo_*.jpg
+LeptonModule/capture/
+LeptonModule/videos/
+LeptonModule/sortie.mp4
+
+# ========================
+# IGNORER LES FICHIERS DE BUILD C++ / Qt
+# ========================
+LeptonModule/software/raspberrypi_video/*.o
+LeptonModule/software/raspberrypi_video/lepton_capture
+LeptonModule/software/raspberrypi_video/lepton_capture.o
+LeptonModule/software/raspberrypi_video/Makefile
+LeptonModule/software/raspberrypi_video/.qmake.stash
+LeptonModule/software/raspberrypi_video/gen_mocs/
+LeptonModule/software/raspberrypi_video/gen_objs/
+
+# ========================
+# IGNORER LES FICHIERS PYTHON
+# ========================
+LeptonModule/__pycache__/
+*.pyc
