@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LEPTON_BIN="$SCRIPT_DIR/software/raspberrypi_video/lepton_capture"
+LEPTON_BIN="$SCRIPT_DIR/lepton_capture"   # ✔️ chemin corrigé
 PID_FILE="/tmp/lepton_capture.pid"
 LOG_FILE="/tmp/lepton_capture.log"
 
@@ -16,7 +16,7 @@ if [ ! -x "$LEPTON_BIN" ]; then
   exit 1
 fi
 
-# Si un ancien process tourne encore, on le stoppe
+# Si un ancien process existe
 if [ -f "$PID_FILE" ]; then
   OLD_PID=$(cat "$PID_FILE")
   if ps -p "$OLD_PID" > /dev/null 2>&1; then
