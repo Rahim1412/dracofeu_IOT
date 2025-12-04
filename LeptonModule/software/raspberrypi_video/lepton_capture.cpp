@@ -4,7 +4,7 @@
 #include <QDir>
 #include <QObject>
 #include <QDebug>
-
+#include <QFile>
 #include "LeptonThread.h"
 
 int main(int argc, char *argv[])
@@ -22,17 +22,25 @@ int main(int argc, char *argv[])
     thread->useSpiSpeedMhz(20); // 20 MHz comme dans ton main
     thread->setAutomaticScalingRange();
 
-    // Quand une nouvelle image arrive -> on la sauvegarde
     QObject::connect(thread, &LeptonThread::updateImage,
-                     [&](const QImage &img) {
-        // Crée le dossier /tmp s'il n'existe pas (normalement oui, mais bon)
+                    [&](const QImage &img) {
         QDir().mkpath("/tmp");
+        QString tmpPath = "/tmp/lepton_last_tmp.png";
+        QString finalPath = "/tmp/lepton_last.png";
 
-        // Écrit toujours dans le même fichier (image écrasée à chaque frame)
-        if (!img.save(outPath, "PNG")) {
-            qWarning() << "Impossible de sauvegarder l'image vers" << outPath;
+        // Sauvegarde dans un fichier temporaire
+        if (!img.save(tmpPath, "PNG")) {
+            qWarning() << "Impossible de sauvegarder l'image vers" << tmpPath;
+            return;
+        }
+
+        // Remplace atomiquement l'ancien fichier
+        QFile::remove(finalPath);          // au cas où
+        if (!QFile::rename(tmpPath, finalPath)) {
+            qWarning() << "Impossible de renommer" << tmpPath << "en" << finalPath;
         }
     });
+
 
     // Lancer la lecture SPI
     thread->start();

@@ -1,0 +1,179 @@
+import subprocess
+import os
+import cv2
+import numpy as np
+import piexif
+from PIL import Image
+import io
+
+
+class CameraIR:
+
+    def __init__(self):
+        self.init_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/init.sh"
+        self.start_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/start.sh"
+        self.stop_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/stop.sh"
+        self.run(self.init_path)
+        self.device = "/dev/video1"  # Périphérique vidéo pour Lepton
+
+    def run(self, script_full):
+        """Rend le script exécutable puis l'exécute depuis un chemin absolu."""
+
+        # Vérifie si le fichier existe
+        if not os.path.isfile(script_full):
+            print(f"Script introuvable : {script_full}")
+            return
+
+        try:
+            # Rend exécutable
+            subprocess.run(["chmod", "+x", script_full], check=True)
+
+            # Exécute le script via Bash
+            result = subprocess.run(
+                ["bash", script_full],
+                capture_output=True,
+                text=True
+            )
+
+            print("✅ Script exécuté")
+            print("STDOUT:")
+            print(result.stdout)
+
+            if result.stderr:
+                print("⚠️ STDERR:")
+                print(result.stderr)
+
+        except Exception as e:
+            print(f" Erreur : {e}")
+
+    def start_cam(self):
+        try:
+            self.run(self.start_path)
+
+        except Exception as e:
+            print(f"Erreur lors du démarrage de la caméra : {e}")
+
+    def stop_cam(self):
+        try:
+            self.run(self.stop_path)
+
+        except Exception as e:
+            print(f"Erreur lors de l'arrêt de la caméra : {e}")
+
+    def save_image(self):
+        """
+        Capture une image depuis le flux vidéo Lepton
+        et enregistre le fichier sous un nom unique : photo_1.jpg, photo_2.jpg, etc.
+        """
+        base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
+        base_name = "photo"
+        ext = ".jpg"
+
+        # Cherche le prochain numéro disponible
+        i = 1
+        while os.path.exists(f"{base_dir}/{base_name}_{i}{ext}"):
+            i += 1
+
+        save_path = f"{base_dir}/{base_name}_{i}{ext}"
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f", "video4linux2",
+            "-input_format", "Y16",
+            "-video_size", "160x120",
+            "-i", self.device,
+            "-frames:v", "1",
+            save_path
+        ]
+
+        print(f"📸 Capture {i} ...")
+        try:
+            subprocess.run(cmd, check=True)
+            print(f"✅ Photo sauvegardée : {save_path}")
+        except subprocess.CalledProcessError:
+            print("❌ Erreur : capture impossible.")
+            return None
+        return save_path
+
+    def capture_image(self):
+        """
+        Capture une image depuis /dev/video1 avec ffmpeg
+        et retourne directement un numpy array (normalisé 0–1),
+        SANS écrire de fichier sur le disque.
+        """
+
+        cmd = [
+            "ffmpeg",
+            "-loglevel", "error",        # pas de spam
+            "-f", "video4linux2",
+            "-input_format", "Y16",      # selon ce que tu sors sur /dev/video1
+            "-video_size", "160x120",
+            "-i", self.device,
+            "-frames:v", "1",
+            "-f", "image2pipe",
+            "-vcodec", "png",            # on encode une image PNG en sortie
+            "pipe:1"                     # vers stdout
+        ]
+
+        try:
+            result = subprocess.run(
+                cmd,
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+        except subprocess.CalledProcessError as e:
+            print("❌ Erreur ffmpeg :")
+            print(e.stderr.decode("utf-8", errors="ignore"))
+            return None
+
+        # Décodage de l'image PNG depuis la mémoire
+        img = Image.open(io.BytesIO(result.stdout))
+
+        # Conversion en numpy array
+        img_np = np.array(img).astype(np.float32)
+
+        # Normalisation 0–1 (froid → chaud)
+        minv = img_np.min()
+        maxv = 255
+        if maxv > minv:
+            img_norm = (img_np - minv) / (maxv - minv)
+        else:
+            img_norm = np.zeros_like(img_np, dtype=np.float32)
+
+        # img_norm est un tableau 2D (120x160) de float32 entre 0 et 1
+        return img_norm
+
+    def dms_to_deg(self, value, ref):
+        d, m, s = value
+        deg = d[0]/d[1] + (m[0]/m[1])/60 + (s[0]/s[1])/3600
+        if ref in ['S', 'W']:
+            deg = -deg
+        return deg
+    
+    def deg_to_dms_rational(self, deg_float):
+        deg = int(deg_float)
+        min_float = (deg_float - deg) * 60
+        minutes = int(min_float)
+        sec_float = (min_float - minutes) * 60
+        return ((deg, 1), (minutes, 1), (int(sec_float * 100), 100))
+    
+    def add_gps_exif(self, image_path, lat, lon, alt):
+        gps_ifd = {
+            piexif.GPSIFD.GPSLatitudeRef: 'N' if lat >= 0 else 'S',
+            piexif.GPSIFD.GPSLatitude: self.deg_to_dms_rational(abs(lat)),
+            piexif.GPSIFD.GPSLongitudeRef: 'E' if lon >= 0 else 'W',
+            piexif.GPSIFD.GPSLongitude: self.deg_to_dms_rational(abs(lon)),
+            piexif.GPSIFD.GPSAltitudeRef: 0,
+            piexif.GPSIFD.GPSAltitude: (int(alt * 100), 100),
+        }
+
+        exif_dict = {"GPS": gps_ifd}
+        exif_bytes = piexif.dump(exif_dict)
+
+        img = Image.open(image_path)
+        img.save(image_path, exif=exif_bytes)
+        print(f"📌 GPS ajouté à {image_path}")
+
+    
