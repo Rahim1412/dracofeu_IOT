@@ -5,6 +5,7 @@
 #include <QObject>
 #include <QDebug>
 #include <QFile>
+#include <QSaveFile>      // 🔹 pour une écriture atomique propre
 #include "LeptonThread.h"
 
 int main(int argc, char *argv[])
@@ -23,24 +24,29 @@ int main(int argc, char *argv[])
     thread->setAutomaticScalingRange();
 
     QObject::connect(thread, &LeptonThread::updateImage,
-                    [&](const QImage &img) {
+                     [&](const QImage &img) {
         QDir().mkpath("/tmp");
-        QString tmpPath = "/tmp/lepton_last_tmp.png";
-        QString finalPath = "/tmp/lepton_last.png";
 
-        // Sauvegarde dans un fichier temporaire
-        if (!img.save(tmpPath, "PNG")) {
-            qWarning() << "Impossible de sauvegarder l'image vers" << tmpPath;
+        // 🔹 Utilisation de QSaveFile pour écriture atomique
+        QSaveFile file(outPath);
+
+        if (!file.open(QIODevice::WriteOnly)) {
+            qWarning() << "Impossible d'ouvrir" << outPath << "en écriture";
             return;
         }
 
-        // Remplace atomiquement l'ancien fichier
-        QFile::remove(finalPath);          // au cas où
-        if (!QFile::rename(tmpPath, finalPath)) {
-            qWarning() << "Impossible de renommer" << tmpPath << "en" << finalPath;
+        // On demande à QImage de sauvegarder dans le QSaveFile
+        if (!img.save(&file, "PNG")) {
+            qWarning() << "Impossible de sauvegarder l'image dans" << outPath;
+            file.cancelWriting();
+            return;
+        }
+
+        // Commit : remplace le fichier cible de manière atomique
+        if (!file.commit()) {
+            qWarning() << "Impossible de finaliser l'écriture de" << outPath;
         }
     });
-
 
     // Lancer la lecture SPI
     thread->start();
