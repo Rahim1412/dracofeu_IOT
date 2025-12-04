@@ -116,38 +116,19 @@ class CameraIR:
     # CAPTURE / LECTURE D'IMAGE
     # ------------------------------------------------------------------
     def capture_frame(self, normalize=False):
-        """
-        Lit la dernière image /tmp/lepton_last.png produite par le backend.
-
-        Parameters
-        ----------
-        normalize : bool
-            Si True, renvoie un tableau float32 entre 0 et 1.
-            Si False, renvoie l'image uint8 telle que lue par OpenCV.
-
-        Returns
-        -------
-        img : np.ndarray ou None
-            Image 2D (grayscale) ou None si la lecture échoue.
-        """
         if not os.path.exists(self.capture_path):
-            print(f"⚠️ Fichier introuvable : {self.capture_path}")
+            # on ne tente même pas imread si le fichier n'existe pas
+            # print(f"⚠️ Fichier introuvable : {self.capture_path}")
             return None
 
         img = cv2.imread(self.capture_path, cv2.IMREAD_UNCHANGED)
         if img is None:
-            # Fichier peut être en cours de remplacement => on ignore
-            # l'erreur et on retourne None
+            # fichier en cours d'écriture / corrompu → on ignore cette frame
             return None
-
-        # Si l'image est en couleur, on passe en niveaux de gris
         if img.ndim == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
         if not normalize:
             return img
-
-        # Normalisation 0–1
         img_f = img.astype(np.float32)
         minv = img_f.min()
         maxv = img_f.max()
