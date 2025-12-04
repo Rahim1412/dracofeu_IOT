@@ -1,5 +1,6 @@
 import subprocess
 import os
+import time
 import cv2
 import numpy as np
 import piexif
@@ -8,157 +9,201 @@ import io
 
 
 class CameraIR:
+    """
+    Interface haut-niveau pour la caméra FLIR Lepton.
+    - start_cam / stop_cam : pilotent le backend C++ via les scripts Bash
+    - capture_frame        : lit la dernière image /tmp/lepton_last.png
+    - save_image           : sauvegarde une image dans un fichier JPG
+    - add_gps_exif         : ajoute les infos GPS dans une image
+    """
 
     def __init__(self):
-        self.init_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/init.sh"
-        self.start_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/start.sh"
-        self.stop_path = "/home/dracofeu/dracofeu_IOT/LeptonModule/stop.sh"
-        self.run(self.init_path)
-        self.device = "/dev/video1"  # Périphérique vidéo pour Lepton
+        # Dossiers de travail
+        self.base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
+        self.rpi_video_dir = os.path.join(
+            self.base_dir, "software/raspberrypi_video"
+        )
 
-    def run(self, script_full):
-        """Rend le script exécutable puis l'exécute depuis un chemin absolu."""
+        # Scripts Bash
+        self.init_path = os.path.join(self.rpi_video_dir, "init.sh")
+        self.start_path = os.path.join(self.rpi_video_dir, "start.sh")
+        self.stop_path = os.path.join(self.rpi_video_dir, "stop.sh")
 
-        # Vérifie si le fichier existe
+        # Fichier produit par le backend C++
+        self.capture_path = "/tmp/lepton_last.png"
+
+        # Lancement de l'init une seule fois
+        self._run_script(self.init_path)
+
+    # ------------------------------------------------------------------
+    # OUTILS INTERNES
+    # ------------------------------------------------------------------
+    def _run_script(self, script_full):
+        """Exécute un script Bash depuis un chemin absolu."""
+
         if not os.path.isfile(script_full):
-            print(f"Script introuvable : {script_full}")
+            print(f"❌ Script introuvable : {script_full}")
             return
 
         try:
-            # Rend exécutable
-            subprocess.run(["chmod", "+x", script_full], check=True)
+            # On s'assure que le script est exécutable
+            os.chmod(script_full, 0o755)
 
-            # Exécute le script via Bash
             result = subprocess.run(
                 ["bash", script_full],
                 capture_output=True,
                 text=True
             )
 
-            print("✅ Script exécuté")
-            print("STDOUT:")
-            print(result.stdout)
-
+            print(f"✅ Script exécuté : {script_full}")
+            if result.stdout:
+                print("STDOUT:")
+                print(result.stdout.strip())
             if result.stderr:
                 print("⚠️ STDERR:")
-                print(result.stderr)
+                print(result.stderr.strip())
 
         except Exception as e:
-            print(f" Erreur : {e}")
+            print(f"❌ Erreur lors de l'exécution de {script_full} : {e}")
 
+    def _wait_first_frame(self, timeout=5.0):
+        """
+        Attend que /tmp/lepton_last.png soit lisible par OpenCV.
+        Retourne True si une image a pu être lue, False sinon.
+        """
+        print("⏳ Attente de la première image lisible...")
+
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            if not os.path.exists(self.capture_path):
+                time.sleep(0.1)
+                continue
+
+            img = cv2.imread(self.capture_path, cv2.IMREAD_UNCHANGED)
+            if img is not None:
+                print("✅ Première image lue.")
+                return True
+
+            time.sleep(0.1)
+
+        print("❌ Impossible de lire la première image. Le flux n'est peut-être pas lancé.")
+        return False
+
+    # ------------------------------------------------------------------
+    # CONTROLE DU BACKEND
+    # ------------------------------------------------------------------
     def start_cam(self):
+        """
+        Démarre le backend C++ (lepton_capture) via start.sh
+        et attend la première image.
+        """
+        print("▶️ Démarrage de la caméra IR...")
         try:
-            self.run(self.start_path)
-
+            self._run_script(self.start_path)
+            self._wait_first_frame()
         except Exception as e:
-            print(f"Erreur lors du démarrage de la caméra : {e}")
+            print(f"❌ Erreur lors du démarrage de la caméra : {e}")
 
     def stop_cam(self):
+        """Arrête le backend C++ via stop.sh."""
+        print("⛔ Arrêt de la caméra IR...")
         try:
-            self.run(self.stop_path)
-
+            self._run_script(self.stop_path)
         except Exception as e:
-            print(f"Erreur lors de l'arrêt de la caméra : {e}")
+            print(f"❌ Erreur lors de l'arrêt de la caméra : {e}")
+
+    # ------------------------------------------------------------------
+    # CAPTURE / LECTURE D'IMAGE
+    # ------------------------------------------------------------------
+    def capture_frame(self, normalize=False):
+        """
+        Lit la dernière image /tmp/lepton_last.png produite par le backend.
+
+        Parameters
+        ----------
+        normalize : bool
+            Si True, renvoie un tableau float32 entre 0 et 1.
+            Si False, renvoie l'image uint8 telle que lue par OpenCV.
+
+        Returns
+        -------
+        img : np.ndarray ou None
+            Image 2D (grayscale) ou None si la lecture échoue.
+        """
+        if not os.path.exists(self.capture_path):
+            print(f"⚠️ Fichier introuvable : {self.capture_path}")
+            return None
+
+        img = cv2.imread(self.capture_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            # Fichier peut être en cours de remplacement => on ignore
+            # l'erreur et on retourne None
+            return None
+
+        # Si l'image est en couleur, on passe en niveaux de gris
+        if img.ndim == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        if not normalize:
+            return img
+
+        # Normalisation 0–1
+        img_f = img.astype(np.float32)
+        minv = img_f.min()
+        maxv = img_f.max()
+        if maxv > minv:
+            img_norm = (img_f - minv) / (maxv - minv)
+        else:
+            img_norm = np.zeros_like(img_f, dtype=np.float32)
+        return img_norm
 
     def save_image(self):
         """
-        Capture une image depuis le flux vidéo Lepton
-        et enregistre le fichier sous un nom unique : photo_1.jpg, photo_2.jpg, etc.
+        Capture l'image actuelle et l'enregistre sous la forme
+        photo_1.jpg, photo_2.jpg, etc. dans le dossier LeptonModule.
+        Retourne le chemin du fichier créé ou None en cas d'échec.
         """
-        base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
+        img = self.capture_frame(normalize=False)
+        if img is None:
+            print("❌ Impossible de capturer l'image pour sauvegarde.")
+            return None
+
+        base_dir = self.base_dir
         base_name = "photo"
         ext = ".jpg"
 
         # Cherche le prochain numéro disponible
         i = 1
-        while os.path.exists(f"{base_dir}/{base_name}_{i}{ext}"):
+        while os.path.exists(os.path.join(base_dir, f"{base_name}_{i}{ext}")):
             i += 1
 
-        save_path = f"{base_dir}/{base_name}_{i}{ext}"
+        save_path = os.path.join(base_dir, f"{base_name}_{i}{ext}")
 
-        cmd = [
-            "ffmpeg",
-            "-y",
-            "-f", "video4linux2",
-            "-input_format", "Y16",
-            "-video_size", "160x120",
-            "-i", self.device,
-            "-frames:v", "1",
-            save_path
-        ]
-
-        print(f"📸 Capture {i} ...")
-        try:
-            subprocess.run(cmd, check=True)
-            print(f"✅ Photo sauvegardée : {save_path}")
-        except subprocess.CalledProcessError:
-            print("❌ Erreur : capture impossible.")
-            return None
-        return save_path
-
-    def capture_image(self):
-        """
-        Capture une image depuis /dev/video1 avec ffmpeg
-        et retourne directement un numpy array (normalisé 0–1),
-        SANS écrire de fichier sur le disque.
-        """
-
-        cmd = [
-            "ffmpeg",
-            "-loglevel", "error",        # pas de spam
-            "-f", "video4linux2",
-            "-input_format", "Y16",      # selon ce que tu sors sur /dev/video1
-            "-video_size", "160x120",
-            "-i", self.device,
-            "-frames:v", "1",
-            "-f", "image2pipe",
-            "-vcodec", "png",            # on encode une image PNG en sortie
-            "pipe:1"                     # vers stdout
-        ]
-
-        try:
-            result = subprocess.run(
-                cmd,
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE
-            )
-        except subprocess.CalledProcessError as e:
-            print("❌ Erreur ffmpeg :")
-            print(e.stderr.decode("utf-8", errors="ignore"))
-            return None
-
-        # Décodage de l'image PNG depuis la mémoire
-        img = Image.open(io.BytesIO(result.stdout))
-
-        # Conversion en numpy array
-        img_np = np.array(img).astype(np.float32)
-
-        # Normalisation 0–1 (froid → chaud)
-        minv = img_np.min()
-        maxv = 255
-        if maxv > minv:
-            img_norm = (img_np - minv) / (maxv - minv)
+        # Sauvegarde en JPG
+        if cv2.imwrite(save_path, img):
+            print(f"📸 Photo sauvegardée : {save_path}")
+            return save_path
         else:
-            img_norm = np.zeros_like(img_np, dtype=np.float32)
+            print("❌ Erreur lors de l'écriture du fichier image.")
+            return None
 
-        # img_norm est un tableau 2D (120x160) de float32 entre 0 et 1
-        return img_norm
-
+    # ------------------------------------------------------------------
+    # GPS / EXIF
+    # ------------------------------------------------------------------
     def dms_to_deg(self, value, ref):
         d, m, s = value
         deg = d[0]/d[1] + (m[0]/m[1])/60 + (s[0]/s[1])/3600
         if ref in ['S', 'W']:
             deg = -deg
         return deg
-    
+
     def deg_to_dms_rational(self, deg_float):
         deg = int(deg_float)
         min_float = (deg_float - deg) * 60
         minutes = int(min_float)
         sec_float = (min_float - minutes) * 60
         return ((deg, 1), (minutes, 1), (int(sec_float * 100), 100))
-    
+
     def add_gps_exif(self, image_path, lat, lon, alt):
         gps_ifd = {
             piexif.GPSIFD.GPSLatitudeRef: 'N' if lat >= 0 else 'S',
@@ -176,4 +221,40 @@ class CameraIR:
         img.save(image_path, exif=exif_bytes)
         print(f"📌 GPS ajouté à {image_path}")
 
-    
+    # ------------------------------------------------------------------
+    # MODE APERCU / STREAM (optionnel)
+    # ------------------------------------------------------------------
+    def preview_stream(self, window_name="Flux IR (CameraIR)", key_quit='q'):
+        """
+        Affiche un aperçu du flux IR dans une fenêtre OpenCV.
+        Ne démarre ni n'arrête la caméra : suppose que start_cam()
+        a déjà été appelé auparavant.
+        """
+        print("🎥 Aperçu du flux IR (CameraIR.preview_stream)")
+        print("➡️ Appuie sur 'q' pour quitter.")
+
+        if not self._wait_first_frame(timeout=5.0):
+            return
+
+        while True:
+            img = self.capture_frame(normalize=False)
+            if img is None:
+                # image non lisible à cet instant, on saute cette frame
+                time.sleep(0.01)
+                continue
+
+            cv2.imshow(window_name, img)
+
+            if cv2.waitKey(1) & 0xFF == ord(key_quit):
+                break
+
+        cv2.destroyAllWindows()
+        print("🛑 Fenêtre stream fermée.")
+
+
+# Exemple d'utilisation simple
+if __name__ == "__main__":
+    cam = CameraIR()
+    cam.start_cam()
+    cam.preview_stream()
+    cam.stop_cam()
