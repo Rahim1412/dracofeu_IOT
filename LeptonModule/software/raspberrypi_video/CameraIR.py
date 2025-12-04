@@ -19,7 +19,7 @@ class CameraIR:
 
     def __init__(self):
         # Dossiers de travail
-        self.base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule"
+        self.base_dir = "/home/dracofeu/dracofeu_IOT/LeptonModule/software/raspberrypi_video/images"
         self.rpi_video_dir = os.path.join(
             self.base_dir, "software/raspberrypi_video"
         )
