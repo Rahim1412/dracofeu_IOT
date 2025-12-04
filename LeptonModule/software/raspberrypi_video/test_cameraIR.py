@@ -45,10 +45,20 @@ else:
 # ---------------------------------------------------------
 print("🎥 Test du stream continu (Appuie sur Q pour quitter)")
 
+missing_count = 0
+
 while True:
     frame = cam.capture_frame()
     if frame is None:
+        missing_count += 1
+        time.sleep(0.01)   # on évite de bourriner le CPU
+        # Si on n'a plus rien pendant longtemps, on sort
+        if missing_count > 5000:  # ~50 s à 0.01s
+            print("❌ Plus d'image disponible depuis un moment, arrêt du stream.")
+            break
         continue
+
+    missing_count = 0  # on a une image, on reset le compteur
 
     cv2.imshow("Flux IR (CameraIR)", frame)
 
@@ -56,11 +66,8 @@ while True:
         break
 
 cv2.destroyAllWindows()
-
-# ---------------------------------------------------------
-# 6) Arrêt du flux
-# ---------------------------------------------------------
-print("🛑 Arrêt du flux thermique...")
+print("🛑 Fermeture du stream.")
 cam.stop_cam()
+
 
 print("✅ Test complet terminé !")
