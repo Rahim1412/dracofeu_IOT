@@ -28,9 +28,9 @@ int main(int argc, char *argv[])
     QString outPath = "/tmp/lepton_last.png";
 
     // ----------- Lecture optionnelle d'une plage en °C ----------
-    bool useTempRange = false;
-    double tempMinC = 50;
-    double tempMaxC = 100;
+    bool useTempRange = true;
+    double tempMinC = 20;
+    double tempMaxC = 40;
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--tempC") == 0 && i + 2 < argc) {
