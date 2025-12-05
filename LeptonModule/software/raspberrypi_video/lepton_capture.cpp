@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
     // ----------- Lecture optionnelle d'une plage en °C ----------
     bool useTempRange = false;
     double tempMinC = 20;
-    double tempMaxC = 38;
+    double tempMaxC = 22;
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--tempC") == 0 && i + 2 < argc) {
