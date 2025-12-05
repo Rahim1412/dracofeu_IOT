@@ -1,55 +1,56 @@
 #!/bin/bash
 # =====================================================
-# setup.sh — Installation initiale du module FLIR Lepton
-# (à lancer une seule fois, ou après modification du code C++)
+# Script d'installation et de compilation forcée du backend FLIR Lepton 3.5
 # =====================================================
 
-set -e  # stoppe le script si une commande échoue
+set -e  # stoppe le script si erreur
 
-# Dossier où se trouve ce script (ici: .../LeptonModule/software/raspberrypi_video)
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-LEPTON_DIR="$SCRIPT_DIR"
-LEPTON_BIN="$LEPTON_DIR/lepton_capture"
-
-echo "🚀 Script d'installation du module FLIR Lepton"
-
-# 1) Activation SPI / I2C (normalement à faire qu'une seule fois)
+echo "🚀 [1/4] Activation de I2C et SPI..."
 if [ -f /boot/firmware/config.txt ]; then
-    echo "🔧 Configuration SPI/I2C dans /boot/firmware/config.txt..."
     sudo sed -i '/^dtparam=i2c_arm=/d' /boot/firmware/config.txt
     sudo sed -i '/^dtparam=spi=/d' /boot/firmware/config.txt
     echo "dtparam=i2c_arm=on" | sudo tee -a /boot/firmware/config.txt
-    echo "dtparam=spi=on"     | sudo tee -a /boot/firmware/config.txt
+    echo "dtparam=spi=on" | sudo tee -a /boot/firmware/config.txt
 else
-    echo "⚠️ /boot/firmware/config.txt introuvable (selon l’OS ça peut être /boot/config.txt)."
+    echo "⚠️ Aucun fichier /boot/firmware/config.txt trouvé"
 fi
 
-# 2) Installation des paquets nécessaires (si pas déjà faits)
-echo "📦 Installation des dépendances (si nécessaire)..."
+
+echo "📦 [2/4] Installation des dépendances..."
 sudo apt-get update -y
 sudo apt-get install -y build-essential qtbase5-dev qt5-qmake git
 
-# 3) Compilation de lepton_capture (uniquement si pas déjà compilé)
-if [ -x "$LEPTON_BIN" ]; then
-    echo "✅ lepton_capture déjà compilé : $LEPTON_BIN"
-    echo "   -> Pas besoin de recompiler. Si tu modifies le code C++, supprime le binaire et relance setup.sh."
-    exit 0
-fi
 
-echo "🧱 Compilation de lepton_capture..."
-cd "$LEPTON_DIR" || {
-  echo "❌ Dossier $LEPTON_DIR introuvable."
-  exit 1
-}
+# ============================
+# 🧱 [3/4] Compilation forcée du projet lepton_capture
+# ============================
 
+ROOT_DIR="$(dirname "$0")"
+VIDEO_DIR="$ROOT_DIR/software/raspberrypi_video"
+BIN_PATH="$VIDEO_DIR/lepton_capture"
+
+echo "🧹 Suppression de l'ancien binaire (si présent)..."
+rm -f "$BIN_PATH"
+
+echo "🔧 Compilation forcée du backend lepton_capture..."
+cd "$VIDEO_DIR"
+
+# Suppression des anciens fichiers de build
+rm -rf gen_mocs gen_objs Makefile .qmake.stash
+
+# Regénération des fichiers
 qmake lepton_capture.pro
 make -j4
 
-if [ -x "$LEPTON_BIN" ]; then
-    echo "✅ Compilation terminée. Binaire disponible : $LEPTON_BIN"
-else
-    echo "❌ Erreur : le binaire lepton_capture n'a pas été généré."
+if [ ! -f "$BIN_PATH" ]; then
+    echo "❌ Erreur : compilation échouée, binaire introuvable"
     exit 1
 fi
 
-echo "ℹ️ Si tu viens de modifier /boot/firmware/config.txt, un redémarrage de la Raspberry Pi peut être nécessaire."
+echo "✅ Compilation terminée : $BIN_PATH"
+
+
+
+echo "🎉 [4/4] Installation terminée."
+echo "➡️ Redémarre la Raspberry Pi pour finaliser l’activation SPI/I2C."
+
