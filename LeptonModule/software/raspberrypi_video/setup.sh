@@ -12,21 +12,20 @@ if [ -f /boot/firmware/config.txt ]; then
     echo "dtparam=i2c_arm=on" | sudo tee -a /boot/firmware/config.txt
     echo "dtparam=spi=on" | sudo tee -a /boot/firmware/config.txt
 else
-    echo "⚠️ Aucun fichier /boot/firmware/config.txt trouvé"
+    echo "⚠️ Aucun fichier /boot/firmware/config.txt trouvé (OS différent ?)"
 fi
-
 
 echo "📦 [2/4] Installation des dépendances..."
 sudo apt-get update -y
 sudo apt-get install -y build-essential qtbase5-dev qt5-qmake git
 
-
 # ============================
 # 🧱 [3/4] Compilation forcée du projet lepton_capture
 # ============================
 
-ROOT_DIR="$(dirname "$0")"
-VIDEO_DIR="$ROOT_DIR/software/raspberrypi_video"
+# Dossier où se trouve ce script (raspberrypi_video)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+VIDEO_DIR="$SCRIPT_DIR"
 BIN_PATH="$VIDEO_DIR/lepton_capture"
 
 echo "🧹 Suppression de l'ancien binaire (si présent)..."
@@ -35,10 +34,10 @@ rm -f "$BIN_PATH"
 echo "🔧 Compilation forcée du backend lepton_capture..."
 cd "$VIDEO_DIR"
 
-# Suppression des anciens fichiers de build
+# Nettoyage des anciens fichiers de build Qt
 rm -rf gen_mocs gen_objs Makefile .qmake.stash
 
-# Regénération des fichiers
+# Regénération des fichiers et compilation
 qmake lepton_capture.pro
 make -j4
 
@@ -49,8 +48,5 @@ fi
 
 echo "✅ Compilation terminée : $BIN_PATH"
 
-
-
 echo "🎉 [4/4] Installation terminée."
-echo "➡️ Redémarre la Raspberry Pi pour finaliser l’activation SPI/I2C."
-
+echo "➡️ Redémarre la Raspberry Pi pour finaliser l’activation SPI/I2C (si ce n'est pas déjà fait)."
