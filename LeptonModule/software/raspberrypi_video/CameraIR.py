@@ -115,28 +115,48 @@ class CameraIR:
     # ------------------------------------------------------------------
     # CAPTURE / LECTURE D'IMAGE
     # ------------------------------------------------------------------
-    def capture_frame(self, normalize=False):
-        if not os.path.exists(self.capture_path):
-            # on ne tente même pas imread si le fichier n'existe pas
-            # print(f"⚠️ Fichier introuvable : {self.capture_path}")
-            return None
+    def capture_frame(self, normalize=False, retry_delay=0.01):
+        """
+        Lit la dernière image /tmp/lepton_last.png.
+        Si l'image est absente ou en cours d'écriture, réessaie en boucle
+        jusqu'à obtenir une frame valide.
 
-        img = cv2.imread(self.capture_path, cv2.IMREAD_UNCHANGED)
-        if img is None:
-            # fichier en cours d'écriture / corrompu → on ignore cette frame
-            return None
-        if img.ndim == 3:
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        if not normalize:
-            return img
-        img_f = img.astype(np.float32)
-        minv = img_f.min()
-        maxv = img_f.max()
-        if maxv > minv:
-            img_norm = (img_f - minv) / (maxv - minv)
-        else:
-            img_norm = np.zeros_like(img_f, dtype=np.float32)
-        return img_norm
+        retry_delay : temps en secondes entre deux tentatives (par défaut : 10 ms)
+        """
+
+        while True:
+            # Le fichier existe ?
+            if not os.path.exists(self.capture_path):
+                time.sleep(retry_delay)
+                continue
+
+            # Lecture OpenCV
+            img = cv2.imread(self.capture_path, cv2.IMREAD_UNCHANGED)
+
+            # Image illisible → le backend est peut-être en train d'écrire
+            if img is None:
+                time.sleep(retry_delay)
+                continue
+
+            # Conversion couleur → gris
+            if img.ndim == 3:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            # Normalisation optionnelle
+            if not normalize:
+                return img
+
+            img_f = img.astype(np.float32)
+            minv = img_f.min()
+            maxv = img_f.max()
+
+            if maxv > minv:
+                img_norm = (img_f - minv) / (maxv - minv)
+            else:
+                img_norm = np.zeros_like(img_f, dtype=np.float32)
+
+            return img_norm
+
 
     def save_image(self):
         """
