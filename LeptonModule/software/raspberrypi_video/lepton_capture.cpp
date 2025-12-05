@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
 
     // ----------- Lecture optionnelle d'une plage en °C ----------
     bool useTempRange = true;
-    double tempMinC = 50;
+    double tempMinC = 36;
     double tempMaxC = 100;
 
     for (int i = 1; i < argc; ++i) {
